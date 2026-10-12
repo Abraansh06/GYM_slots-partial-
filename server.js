@@ -5,6 +5,11 @@ const bcrypt=require('bcryptjs');
 const jwt=require('jsonwebtoken');
 const db=require('./db');
 const{authenticateToken,requireAdmin}=require('./auth');
+const crypto = require('crypto');
+
+function generateCheckInCode(){
+    return crypto.randomBytes(3).toString('hex').yoUpperCase();
+}
 
 const app=express();
 app.use(cors());
@@ -143,6 +148,169 @@ app.post('/api/auth/register',async(req,res,next)=>{
         const sessions=db.prepare(query).all(...params);
         res.json({sessions});
             } catch(err){ 
+                next(err);
+            }
+        });
+
+        //session booking
+        app.post('/api/session/:id/book',authenticateToken,(req,res,next)=>{
+            try{
+            const sessionId=req.params.id;
+            const userId=req.user.id;
+
+            const session=db.prepare('SELECT * FROM sessions WHERE id=?').get(sessionId);
+
+            if(!session){
+                return res.status(404).json({error:'Session not found'});
+            }
+
+            if(new Date()>=new Date(session.start_time)){
+                return res.status(400).json({error:'Cannot book a session that has already started'})
+            }
+
+            const existingBooking=db.prepare(
+                "SELECT id FROM  bookings WHERE session_id=? AND user_id=? AND status = 'CONFIRMED'"
+            ).get(sessionId,userId);
+
+            if(existingBooking){
+                return res.status(400).json({error:'You already have existing booking for this session'})
+            }
+
+            //transaction
+            const bookTransaction=db.transaction(()=>{
+                const conafirmedCount=db.prepare(
+                    "SELECT COUNT(*) AS total FROM bookings WHERE session_id=? AND status = 'CONFIRMED'").get(sessionId).total;
+
+                    if(conafirmedCount>=session.capacity){
+                        throw new Error('SESSION FULL');
+                    }
+
+                    const code = generateCheckInCode();
+                    const insertResult=db.prepare(
+                        "INSERT INTO bookings(session_id,user_id,status,check_in_code) VALUES (?,?,'CONFIRMED',?)"
+                    ).run(sessionId,userId,code);
+            });
+
+            try{
+                const bookingData=bookTransaction();
+                res.status(201).json({
+                    message:'Booking confirmed',
+                    bookingId:bookingData.bookingId,
+                    checkInCode:bookingData.code
+                });
+            } catch(err){
+                if(err.message==='SESSION_FULL'){
+                    return res.status(409).json({error:'Session is full. Please join the waitlist.'})
+                }
+             throw err;
+            }
+        } catch(err){
+            next(err);
+        }
+        });
+
+        //JOIN waitlist
+        app.post('/api/sessions/:id/waitlist',authenticateToken,(req,res,next)=>{
+            try{
+                const sessionId=req.params.id;
+                const userId=req.user.id;
+
+                const session=db.prepare('SELECT * FROM sessions WHERE id=?').get(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    if (new Date() >= new Date(session.start_time)) {
+      return res.status(400).json({ error: 'Cannot join waitlist for a session that has already started' });
+    }
+
+    //already on waitlist?
+        const onWaitlist=db.prepare(
+            "SELECT id FROM waitlist_entries WHERE session_id=? AND user_id=? AND status='WAITING'").get(sessionId,userId);
+
+            if(onWaitlist){
+                return res.status(400).json({error:'You are already on waitlist for this session'});
+            }
+
+            //already confirmed
+            const confirmed=db.prepare(
+                "SELECT id FROM bookings WHERE session_id=? AND user_id=? AND status='CONFIRMED'").get(sessionId,userId);
+
+                if(confirmed){
+                    return res.status(400).json({error:'you already have a confirmed seat in this session'})
+                }
+
+                db.prepare(
+                "INSERT INTO waitlist_entries (session_id,user_id,status) VALUES(?,?,'WAITING')").run(sessionId,userId);
+
+                //position calculate
+                const position=db.prepare(
+                    "SELECT COUNT(*) AS pos FROM waitlist_entries WHERE session_id=? AND status='WAITING'").get(sessionId).pos;
+
+                    res.status(201).json({message:'Added to waitlist',position});
+            }catch(err){
+                next(err);
+            }
+        });
+
+        //cancel booking
+        app.post('/api/bookings/:id/cancel',authenticateToken,(req,res,next)=>{
+            try{
+                const bookingId=req.params.id;
+                const userId=re.user.id;
+
+                const booking=db.prepare(
+                    "SELECT b.*,s.start_time FROM bookings b JOIN sessions s ON b.session_id=s.id WHERE b.id=?").get(bookingId);
+
+                        if(!booking){
+                            return res.status(404).json({error:'Booking not found'});
+                        }
+
+                if(booking.userId!==userId && req.user.role!=='admin'){
+                    return res.status(403).json({error:'Forbidden'});
+                }
+
+                if(booking.status!=='CONFIRMED'){
+                    return res.status(400).json({error:'Booking is already cancelled'});
+                }
+
+                if(new Date()>=new Date(booking.start_time)){
+                    return res.status(400).json({error:'Cannot cancel a session that has already started'});
+                }
+                    //waitlist promotion
+                const cancelAndPromote=db.transaction(()=>{
+                        db.prepare("UPDATE bookings SET status = 'CANCELLED' WHEREID=?").run(bookingId);
+
+                        const nextInLine=db.prepare(
+                        "SELECT * FROM waitlist_entries WHERE session_id=? AND status = 'Waiting' ORDER BY created_at ASC LIMIT 1"
+                        ).get(booking.sessionId);
+
+
+                        let promotedUserId=null;
+                        if(nextInLine){
+                            db.prepare("UPDATE waitlist_entries SET status='PROMOTED' WHERE ID=?").run(nextInLine.id);
+                        }
+
+                        //confirmed booking for new user
+                        const newCode=generateCheckInCode();
+                        db.prepare(
+                            "INSERT INTO bookings (session_id,nextInLine.user_id,status,check_in_code) VALUES(?,?,'CONFIRMED,?)"
+                        ).run(booking.session_id,nextInLine,newCode);
+
+                        promotedUserId=nextInLine.user_id;
+
+                return {promotedUserId};
+
+                });
+
+                const result=cancelAndPromote();
+                res.json({
+                    message:'Booking cancelled successfully',
+                    promotedNextWaitlistUser:result.promotedUserId?true:false
+                })
+
+
+            }catch(err){
                 next(err);
             }
         });
