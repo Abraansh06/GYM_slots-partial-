@@ -315,6 +315,80 @@ app.post('/api/auth/register',async(req,res,next)=>{
             }
         });
 
+
+        //admin check in verification
+        app.post('/api/check-in,',authenticateToken,requireAdmin,(req,res,next)=>{
+            try{
+
+                const{code}=req.body;
+
+                if(!code){
+                    return res.status(400).json({error:'Check-in code is required'});
+                }
+
+                const booking=db.prepare(
+                    `SELECT b.*,u.name as user_name,s.start_time
+                    FROM bookings b
+                   JOIN users u ON b.user_id=u.id 
+                   JOIN sessions s ON b.session_id=s.id
+                   WHERE b.check_in_code=? AND b.status='CONFIRMED'`
+                ).get(code.trim().toUpperCase());
+
+                if(!booking){
+                    return res.status(404).json({error:'Invalid or expired check-in-code'});
+                }
+
+                if(booking.checked_in_at){
+                    return res.status(400).json({
+                        error:'Code already used',
+                        checked_in_at:booking.checked_in_at
+                    });
+                }
+
+                const now = new date().toISOString();
+                db.prepare('UPDATE bookings SET checked_in_at=? WHERE id=?').run(now,booking.id);
+
+                res.json({
+                    message:'Check-in successful',
+                    member:booking.start_time,
+                    checkedInAt:now
+                });
+            } catch(err){
+                next(err);
+            }
+        });
+
+        //member iwn booking and waiting status
+        app.get('/api/my-bookings',authenticateToken,(req,res,next)=>{
+
+            try{
+                const userId=req.user.id;
+
+                //confirm,calcelled bookings
+                const bookings=db.prepare(
+                    `SELECT b.id, b.session, b.check_in_code, b.checked_in_at,s.start_time FROM bookings b
+                    JOIN sessions s ON b.session_id=s.id
+                    WHERE b.user_id=?
+                    ORDER BY s.start_time DESC`
+                ).all(userId);
+
+                //active waitlist
+                const waitlists=db.prepare(
+                    `SELECT w.id,w.session_id,w,status,w.created_at,s.start_time
+                    FROM waitlist-entries w
+                    JOIN sessions s ON w.session_id=s.id
+                    WHERE w.user_id=? AND w.status='WAITING'
+                    ORDER BY w.created_at ASC`
+                ).all(userId);
+
+                res.json({bookings,waitlists});
+
+            }catch(err){
+                next(err);
+            }
+
+        });
+
     
                 //global error handler
     app.use((err,req,res,next)=>{
