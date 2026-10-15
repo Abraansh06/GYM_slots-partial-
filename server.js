@@ -51,6 +51,12 @@ app.post('/api/auth/register',async(req,res,next)=>{
     }
 });
 
+
+
+
+
+
+
     //login route
     app.post('/api/auth/login',async(req,res,next)=>{
         try{
@@ -89,6 +95,12 @@ app.post('/api/auth/register',async(req,res,next)=>{
         }
     });
 
+
+
+
+
+
+
         //api sessions(admin)
     app.post('/api/sessions',authenticateToken,requireAdmin,(req,res,next)=>{
         try{
@@ -126,6 +138,12 @@ app.post('/api/auth/register',async(req,res,next)=>{
     }
     });
 
+
+
+
+
+
+
         //browse session with remaining seat
         app.get('/api/sessions',authenticateToken,(req,res,next)=>{
             try{
@@ -153,6 +171,13 @@ app.post('/api/auth/register',async(req,res,next)=>{
                 next(err);
             }
         });
+
+
+
+
+
+
+
 
         //session booking
         app.post('/api/sessions/:id/book',authenticateToken,(req,res,next)=>{
@@ -213,6 +238,14 @@ app.post('/api/auth/register',async(req,res,next)=>{
         }
         });
 
+
+
+
+
+
+
+
+
         //JOIN waitlist
         app.post('/api/sessions/:id/waitlist',authenticateToken,(req,res,next)=>{
             try{
@@ -257,67 +290,50 @@ app.post('/api/auth/register',async(req,res,next)=>{
             }
         });
 
-        //cancel booking
-        app.post('/api/bookings/:id/cancel',authenticateToken,(req,res,next)=>{
+
+
+
+
+
+
+
+
+
+                //member iwn booking and waiting status
+        app.get('/api/my-bookings',authenticateToken,(req,res,next)=>{
+
             try{
-                const bookingId=req.params.id;
-                const userId=re.user.id;
+                const userId=req.user.id;
 
-                const booking=db.prepare(
-                    "SELECT b.*,s.start_time FROM bookings b JOIN sessions s ON b.session_id=s.id WHERE b.id=?").get(bookingId);
+                //confirm,calcelled bookings
+                const bookings=db.prepare(
+                    `SELECT b.id, b.session_id,b.status, b.check_in_code, b.check_in_at,s.start_time FROM bookings b
+                    JOIN sessions s ON b.session_id=s.id
+                    WHERE b.user_id=?
+                    ORDER BY s.start_time DESC`
+                ).all(userId);
 
-                        if(!booking){
-                            return res.status(404).json({error:'Booking not found'});
-                        }
+                //active waitlist
+                const waitlists=db.prepare(
+                    `SELECT w.id,w.session_id,w.status,s.start_time
+                    FROM waitlist_entries w
+                    JOIN sessions s ON w.session_id=s.id
+                    WHERE w.user_id=? AND w.status='WAITING'
+                    ORDER BY w.id ASC`
+                ).all(userId);
 
-                if(booking.userId!==userId && req.user.role!=='admin'){
-                    return res.status(403).json({error:'Forbidden'});
-                }
-
-                if(booking.status!=='CONFIRMED'){
-                    return res.status(400).json({error:'Booking is already cancelled'});
-                }
-
-                if(new Date()>=new Date(booking.start_time)){
-                    return res.status(400).json({error:'Cannot cancel a session that has already started'});
-                }
-                    //waitlist promotion
-                const cancelAndPromote=db.transaction(()=>{
-                        db.prepare("UPDATE bookings SET status = 'CANCELLED' WHEREID=?").run(bookingId);
-
-                        const nextInLine=db.prepare(
-                        "SELECT * FROM waitlist_entries WHERE session_id=? AND status = 'Waiting' ORDER BY created_at ASC LIMIT 1"
-                        ).get(booking.sessionId);
-
-
-                        let promotedUserId=null;
-                        if(nextInLine){
-                            db.prepare("UPDATE waitlist_entries SET status='PROMOTED' WHERE ID=?").run(nextInLine.id);
-                        }
-
-                        //confirmed booking for new user
-                        const newCode=generateCheckInCode();
-                        db.prepare(
-                            "INSERT INTO bookings (session_id,nextInLine.user_id,status,check_in_code) VALUES(?,?,'CONFIRMED,?)"
-                        ).run(booking.session_id,nextInLine,newCode);
-
-                        promotedUserId=nextInLine.user_id;
-
-                return {promotedUserId};
-
-                });
-
-                const result=cancelAndPromote();
-                res.json({
-                    message:'Booking cancelled successfully',
-                    promotedNextWaitlistUser:result.promotedUserId?true:false
-                })
-
+                res.json({bookings,waitlists});
 
             }catch(err){
                 next(err);
             }
+
         });
+
+
+
+
+
 
 
         //admin check in verification
@@ -342,15 +358,15 @@ app.post('/api/auth/register',async(req,res,next)=>{
                     return res.status(404).json({error:'Invalid or expired check-in-code'});
                 }
 
-                if(booking.checked_in_at){
+                if(booking.check_in_at){
                     return res.status(400).json({
                         error:'Code already used',
-                        checked_in_at:booking.checked_in_at
+                        check_in_at:booking.check_in_at
                     });
                 }
 
                 const now = new date().toISOString();
-                db.prepare('UPDATE bookings SET checked_in_at=? WHERE id=?').run(now,booking.id);
+                db.prepare('UPDATE bookings SET check_in_at=? WHERE id=?').run(now,booking.id);
 
                 res.json({
                     message:'Check-in successful',
@@ -362,36 +378,84 @@ app.post('/api/auth/register',async(req,res,next)=>{
             }
         });
 
-        //member iwn booking and waiting status
-        app.get('/api/my-bookings',authenticateToken,(req,res,next)=>{
 
+
+
+
+
+
+
+
+                //cancel booking
+        app.post('/api/bookings/:id/cancel',authenticateToken,(req,res,next)=>{
             try{
+                const bookingId=req.params.id;
                 const userId=req.user.id;
 
-                //confirm,calcelled bookings
-                const bookings=db.prepare(
-                    `SELECT b.id, b.session, b.check_in_code, b.checked_in_at,s.start_time FROM bookings b
-                    JOIN sessions s ON b.session_id=s.id
-                    WHERE b.user_id=?
-                    ORDER BY s.start_time DESC`
-                ).all(userId);
+                const booking=db.prepare(
+                    "SELECT b.*,s.start_time FROM bookings b JOIN sessions s ON b.session_id=s.id WHERE b.id=?").get(bookingId);
 
-                //active waitlist
-                const waitlists=db.prepare(
-                    `SELECT w.id,w.session_id,w,status,w.created_at,s.start_time
-                    FROM waitlist-entries w
-                    JOIN sessions s ON w.session_id=s.id
-                    WHERE w.user_id=? AND w.status='WAITING'
-                    ORDER BY w.created_at ASC`
-                ).all(userId);
+                        if(!booking){
+                            return res.status(404).json({error:'Booking not found'});
+                        }
 
-                res.json({bookings,waitlists});
+                if(booking.user_id!==userId && req.user.role!=='admin'){
+                    return res.status(403).json({error:'Forbidden'});
+                }
+
+                if(booking.status!=='CONFIRMED'){
+                    return res.status(400).json({error:'Booking is already cancelled'});
+                }
+
+                if(new Date()>=new Date(booking.start_time)){
+                    return res.status(400).json({error:'Cannot cancel a session that has already started'});
+                }
+                    //waitlist promotion
+                const cancelAndPromote=db.transaction(()=>{
+                        db.prepare("UPDATE bookings SET status = 'CANCELLED' WHERE id=?").run(bookingId);
+
+                        const nextInLine=db.prepare(
+                        "SELECT * FROM waitlist_entries WHERE session_id=? AND status = 'WAITING' ORDER BY id ASC LIMIT 1"
+                        ).get(booking.session_id);
+
+
+                        let promotedUserId=null;
+                        if(nextInLine){
+                            db.prepare("UPDATE waitlist_entries SET status='PROMOTED' WHERE ID=?").run(nextInLine.id);
+
+
+                            //confirmed booking for new user
+                        const newCode=generateCheckInCode();
+                        db.prepare(
+                            "INSERT INTO bookings (session_id,user_id,status,check_in_code) VALUES(?,?,'CONFIRMED',?)"
+                        ).run(booking.session_id,nextInLine,newCode);
+
+                        promotedUserId=nextInLine.user_id;
+                        }
+
+                        
+
+                return {promotedUserId};
+
+                });
+
+                const result=cancelAndPromote();
+                res.json({
+                    message:'Booking cancelled successfully',
+                    promotedNextWaitlistUser:result.promotedUserId?true:false
+                })
+
 
             }catch(err){
                 next(err);
             }
-
         });
+
+
+
+
+
+        
 
     
                 //global error handler

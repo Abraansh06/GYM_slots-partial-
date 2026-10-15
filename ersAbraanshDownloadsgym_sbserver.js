@@ -1,8 +1,0 @@
-[33m3680acd[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Untrack sqlite database file and add to gitignore
-[33mdf40bce[m Added database seed script with admin, test members, and demo sessions
-[33m87aa252[m Implemented admin check-in verification and user my-bookings endpoints
-[33m9502927[m implemented auto-booking-transactions,waitlist-queues and auto-promotion logic
-[33m216b6bd[m Fixed import names, SQL query spacing and param typos in session API
-[33m191de89[m Implemented registration and login endpoints with password hashing
-[33m832276f[m Added database connection and initial schema
-[33ma014120[m Initialised project with express and dependency
