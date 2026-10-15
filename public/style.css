@@ -44,13 +44,6 @@ button {
   font-weight: bold; 
 }
 
-.danger { 
-  background: #ef4444; 
-}
-
-.hidden { 
-  display: none; 
-}
 
 .toggle-text {
   font-size: 12px; 

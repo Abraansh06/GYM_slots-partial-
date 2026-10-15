@@ -19,7 +19,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const JWT_SECRET=process.env.JWT_SECRET || 'supersecretkey123';
 
-        //register route
+        
 app.post('/api/auth/register',async(req,res,next)=>{
     try{
         const{name,email,password}=req.body;
@@ -57,7 +57,7 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-    //login route
+    
     app.post('/api/auth/login',async(req,res,next)=>{
         try{
             const{email,password}=req.body;
@@ -101,7 +101,6 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-        //api sessions(admin)
     app.post('/api/sessions',authenticateToken,requireAdmin,(req,res,next)=>{
         try{
             const{start_time }=req.body;
@@ -144,7 +143,6 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-        //browse session with remaining seat
         app.get('/api/sessions',authenticateToken,(req,res,next)=>{
             try{
                 const{date}=req.query;
@@ -179,7 +177,6 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-        //session booking
         app.post('/api/sessions/:id/book',authenticateToken,(req,res,next)=>{
             try{
             const sessionId=req.params.id;
@@ -246,7 +243,6 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-        //JOIN waitlist
         app.post('/api/sessions/:id/waitlist',authenticateToken,(req,res,next)=>{
             try{
                 const sessionId=req.params.id;
@@ -298,8 +294,6 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-
-                //member iwn booking and waiting status
         app.get('/api/my-bookings',authenticateToken,(req,res,next)=>{
 
             try{
@@ -336,7 +330,6 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-        //admin check in verification
         app.post('/api/check-in,',authenticateToken,requireAdmin,(req,res,next)=>{
             try{
 
@@ -386,7 +379,7 @@ app.post('/api/auth/register',async(req,res,next)=>{
 
 
 
-                //cancel booking
+               
         app.post('/api/bookings/:id/cancel',authenticateToken,(req,res,next)=>{
             try{
                 const bookingId=req.params.id;
@@ -458,7 +451,7 @@ app.post('/api/auth/register',async(req,res,next)=>{
         
 
     
-                //global error handler
+            
     app.use((err,req,res,next)=>{
         console.error(err);
         res.status(500).json({error:'Internal server error'});

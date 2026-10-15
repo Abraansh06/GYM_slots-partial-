@@ -2,10 +2,10 @@ const jwt=require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretkey123';
 
 
-    //user logged status
+    //user logged satus
 function authenticateToken(req,res,next){
     const authHeader = req.headers['authorization'];
-    //bearer<token>
+    
     const token = authHeader && authHeader.split(' ')[1];
 
     if(!token){

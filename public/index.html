@@ -1,33 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
-  <title>FitSlot</title>
+  <title>Gym Slots</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-  
+
   <div id="authBox" class="card auth-box-layout">
     <h3 id="authTitle">Login</h3>
+
     <input id="name" class="hidden" placeholder="Full Name">
     <input id="email" value="rahul@123.com" placeholder="Email">
     <input id="pass" type="password" value="password123" placeholder="Password">
-    <button onclick="handleAuth()">Submit</button>
-    <p class="toggle-text" onclick="toggleMode()">New user? Register here</p>
+
+    <button>Submit</button>
+    <p class="toggle-text">New user? Register here</p> 
   </div>
+
 
   <div id="appBox" class="hidden">
     <div class="header-row">
-      <h2 id="userInfo"></h2>
-      <button onclick="localStorage.clear();location.reload()">Logout</button>
+      <button>Logout</button>
     </div>
     <h3>Available Sessions</h3>
-    <div id="sessionList"></div>
-    <h3>My Bookings</h3>
-    <div id="bookingList"></div>
   </div>
+
+
+
 
   <script src="app.js"></script>
 </body>
+
 </html>
