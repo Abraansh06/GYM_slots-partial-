@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Gym Slot Booking</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 30px auto; padding: 0 15px; }
+    input, button { padding: 8px; margin: 4px 0; width: 100%; box-sizing: border-box; }
+    .card { border: 1px solid #ccc; padding: 12px; margin: 10px 0; border-radius: 6px; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <h2>Gym Slot Booking</h2>
+
+  <!-- 1. LOGIN / REGISTER BLOCK -->
+  <div id="auth-box">
+    <input id="email" type="email" placeholder="Email" value="rahul@123.com">
+    <input id="password" type="password" placeholder="Password" value="password123">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- 2. DASHBOARD BLOCK -->
+  <div id="app-box" class="hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span id="user-display"></span>
+      <button style="width:auto;" onclick="logout()">Logout</button>
+    </div>
+    <hr>
+    <h3>Available Sessions</h3>
+    <div id="sessions-list">Loading...</div>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('gym_token');
+
+    // 1. LOGIN CALL
+    async function login() {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.value, password: password.value })
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || 'Login failed');
+      
+      localStorage.setItem('gym_token', data.token);
+      token = data.token;
+      showDashboard(data.user.name);
+    }
+
+    // 2. DASHBOARD & SESSIONS LOAD
+    async function showDashboard(name) {
+      document.getElementById('auth-box').classList.add('hidden');
+      document.getElementById('app-box').classList.remove('hidden');
+      document.getElementById('user-display').innerText = `Hi, ${name || 'User'}`;
+
+      const res = await fetch('/api/sessions', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      document.getElementById('sessions-list').innerHTML = (data.sessions || []).map(s => `
+        <div class="card">
+          <p><strong>Time:</strong> ${new Date(s.start_time).toLocaleTimeString()}</p>
+          <p>Mats Left: ${s.seats_remaining} / ${s.capacity}</p>
+          <button onclick="book(${s.id})">Book Slot</button>
+        </div>
+      `).join('');
+    }
+
+    // 3. BOOK SLOT CALL
+    async function book(sessionId) {
+      const res = await fetch(`/api/sessions/${sessionId}/book`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || 'Booking failed');
+      alert(`Booked! Check-in code: ${data.checkInCode || data.check_in_code}`);
+      showDashboard();
+    }
+
+    function logout() {
+      localStorage.clear();
+      location.reload();
+    }
+
+    if (token) showDashboard();
+  </script>
+</body>
+</html>

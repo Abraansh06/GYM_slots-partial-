@@ -3,17 +3,19 @@ const express=require('express');
 const cors=require('cors');
 const bcrypt=require('bcryptjs');
 const jwt=require('jsonwebtoken');
+const path = require('path'); /////
 const db=require('./db');
 const{authenticateToken,requireAdmin}=require('./auth');
 const crypto = require('crypto');
 
 function generateCheckInCode(){
-    return crypto.randomBytes(3).toString('hex').yoUpperCase();
+    return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 
 const app=express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const JWT_SECRET=process.env.JWT_SECRET || 'supersecretkey123';
 
@@ -153,7 +155,7 @@ app.post('/api/auth/register',async(req,res,next)=>{
         });
 
         //session booking
-        app.post('/api/session/:id/book',authenticateToken,(req,res,next)=>{
+        app.post('/api/sessions/:id/book',authenticateToken,(req,res,next)=>{
             try{
             const sessionId=req.params.id;
             const userId=req.user.id;
@@ -189,6 +191,8 @@ app.post('/api/auth/register',async(req,res,next)=>{
                     const insertResult=db.prepare(
                         "INSERT INTO bookings(session_id,user_id,status,check_in_code) VALUES (?,?,'CONFIRMED',?)"
                     ).run(sessionId,userId,code);
+
+                    return { bookingId: insertResult.lastInsertRowid, code };
             });
 
             try{
@@ -396,10 +400,10 @@ app.post('/api/auth/register',async(req,res,next)=>{
         res.status(500).json({error:'Internal server error'});
     });
 
-    const PORT=process.env.PORT || 5000;
-    app.listen(PORT,()=>{
-        console.log(`Server running on port ${PORT}`);
-    });
+  const PORT = 3000;
+   app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
 
 
 
