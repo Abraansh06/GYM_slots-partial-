@@ -2,176 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>FitSlot | Gym Booking</title>
-  <style>
-    :root { --bg: #0f172a; --card: #1e293b; --accent: #3b82f6; --text: #f8fafc; --muted: #94a3b8; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); max-width: 750px; margin: 0 auto; padding: 25px 15px; }
-    .card { background: var(--card); padding: 16px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #334155; }
-    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 15px; }
-    .tabs button { flex: 1; background: #334155; }
-    .tabs button.active { background: var(--accent); }
-    input, button { padding: 10px 14px; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-size: 14px; }
-    input { width: 100%; box-sizing: border-box; margin-bottom: 10px; }
-    button { background: var(--accent); border: none; font-weight: 600; cursor: pointer; }
-    .btn-danger { background: #ef4444; }
-    .btn-warn { background: #f59e0b; color: #000; }
-    .btn-ghost { background: transparent; border: 1px solid #475569; }
-    .badge { padding: 4px 8px; border-radius: 4px; font-size: 12px; background: #334155; color: #38bdf8; font-family: monospace; margin-left: 6px; }
-    .hidden { display: none; }
-  </style>
+  <title>FitSlot</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- AUTH BOX WITH EXPLICIT TABS -->
-  <div id="auth-box" class="card" style="max-width: 400px; margin: 50px auto;">
-    <div class="tabs">
-      <button id="tab-login" class="active" onclick="setMode(false)">Login</button>
-      <button id="tab-register" onclick="setMode(true)">Register New User</button>
-    </div>
-    <input id="name" class="hidden" placeholder="Full Name (e.g. Aman Verma)">
-    <input id="email" type="email" placeholder="Email" value="rahul@gym.com">
-    <input id="password" type="password" placeholder="Password" value="password123">
-    <button onclick="handleAuth()" id="auth-btn" style="width:100%;">Login</button>
+  <!-- AUTH BOX -->
+  <div id="authBox" class="card auth-box-layout">
+    <h3 id="authTitle">Login</h3>
+    <input id="name" class="hidden" placeholder="Full Name">
+    <input id="email" value="rahul@123.com" placeholder="Email">
+    <input id="pass" type="password" value="password123" placeholder="Password">
+    <button onclick="handleAuth()">Submit</button>
+    <p class="toggle-text" onclick="toggleMode()">New user? Register here</p>
   </div>
 
   <!-- DASHBOARD -->
-  <div id="app-box" class="hidden">
-    <div class="row" style="margin-bottom: 20px;">
-      <h2>🏋️ FitSlot Gym</h2>
-      <div>
-        <span id="user-info" style="color:var(--muted); margin-right:10px;"></span>
-        <button class="btn-ghost" onclick="logout()">Logout / Switch User</button>
-      </div>
+  <div id="appBox" class="hidden">
+    <div class="header-row">
+      <h2 id="userInfo"></h2>
+      <button onclick="localStorage.clear();location.reload()">Logout</button>
     </div>
-
-    <!-- ADMIN CONTROLS -->
-    <div id="admin-box" class="card hidden" style="border-color: #f59e0b;">
-      <h3>⚡ Admin Panel</h3>
-      <div class="row">
-        <div style="flex:1; display:flex; gap:6px;">
-          <input id="checkin-code" placeholder="6-digit Check-in Code" style="margin:0;">
-          <button class="btn-warn" onclick="verifyCheckIn()">Verify</button>
-        </div>
-        <div style="flex:1; display:flex; gap:6px;">
-          <input id="new-slot" type="datetime-local" style="margin:0;">
-          <button onclick="createSession()">+ Add Slot</button>
-        </div>
-      </div>
-    </div>
-
-    <h3>1. Available Gym Slots</h3>
-    <div id="sessions-list"></div>
-
-    <h3 style="margin-top: 25px;">2. My Bookings & Cancel Options</h3>
-    <div id="my-bookings"></div>
+    <h3>Available Sessions</h3>
+    <div id="sessionList"></div>
+    <h3>My Bookings</h3>
+    <div id="bookingList"></div>
   </div>
 
-  <script>
-    let isSignup = false;
-    let token = localStorage.getItem('gym_token');
-    let user = JSON.parse(localStorage.getItem('gym_user') || '{}');
-
-    function setMode(signup) {
-      isSignup = signup;
-      document.getElementById('tab-login').classList.toggle('active', !signup);
-      document.getElementById('tab-register').classList.toggle('active', signup);
-      document.getElementById('name').classList.toggle('hidden', !signup);
-      document.getElementById('auth-btn').innerText = signup ? 'Create Account (Register)' : 'Login';
-      if (signup) { email.value = ''; password.value = ''; }
-    }
-
-    async function api(url, method = 'GET', body = null) {
-      const opts = { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } };
-      if (body) opts.body = JSON.stringify(body);
-      const res = await fetch(url, opts);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
-      return data;
-    }
-
-    async function handleAuth() {
-      try {
-        const payload = { email: email.value, password: password.value, ...(isSignup && { name: document.getElementById('name').value }) };
-        const data = await api(isSignup ? '/api/auth/register' : '/api/auth/login', 'POST', payload);
-        if (isSignup) { alert('Account registered! Now login.'); return setMode(false); }
-        localStorage.setItem('gym_token', data.token);
-        localStorage.setItem('gym_user', JSON.stringify(data.user));
-        token = data.token; user = data.user;
-        loadDashboard();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function loadDashboard() {
-      document.getElementById('auth-box').classList.add('hidden');
-      document.getElementById('app-box').classList.remove('hidden');
-      document.getElementById('user-info').innerText = `${user.name || 'User'} (${user.role || 'member'})`;
-      if (user.role === 'admin') document.getElementById('admin-box').classList.remove('hidden');
-
-      const { sessions } = await api('/api/sessions');
-      document.getElementById('sessions-list').innerHTML = sessions.map(s => `
-        <div class="card row">
-          <div>
-            <strong>📅 ${new Date(s.start_time).toLocaleString()}</strong>
-            <div style="color:var(--muted); font-size:13px;">Mats Left: ${s.seats_remaining} / ${s.capacity}</div>
-          </div>
-          ${s.seats_remaining > 0 
-            ? `<button onclick="action('/api/sessions/${s.id}/book')">Book Slot</button>`
-            : `<button class="btn-warn" onclick="action('/api/sessions/${s.id}/waitlist')">Join Waitlist</button>`}
-        </div>
-      `).join('') || '<p style="color:var(--muted)">No upcoming sessions.</p>';
-
-      try {
-        const { bookings, waitlists } = await api('/api/my-bookings');
-        document.getElementById('my-bookings').innerHTML = [
-          ...bookings.map(b => `
-            <div class="card row">
-              <div>
-                <strong>${new Date(b.start_time).toLocaleString()}</strong>
-                <span class="badge">Code: ${b.check_in_code}</span>
-                <span class="badge">${b.status === 'CANCELLED' ? '❌ CANCELLED' : (b.checked_in_at ? '✅ Checked In' : '🟢 CONFIRMED')}</span>
-              </div>
-              ${(b.status !== 'CANCELLED' && !b.checked_in_at) 
-                ? `<button class="btn-danger" onclick="action('/api/bookings/${b.id}/cancel')">Cancel Booking</button>` 
-                : ''}
-            </div>`),
-          ...waitlists.map(w => `
-            <div class="card row">
-              <div><strong>${new Date(w.start_time).toLocaleString()}</strong> <span class="badge">⏳ ON WAITLIST</span></div>
-            </div>`)
-        ].join('') || '<p style="color:var(--muted)">No bookings yet. Book a slot above!</p>';
-      } catch (e) {
-        document.getElementById('my-bookings').innerHTML = `<p style="color:#ef4444">Backend error in /api/my-bookings: ${e.message}</p>`;
-      }
-    }
-
-    async function action(url) {
-      try {
-        const res = await api(url, 'POST');
-        alert(res.message + (res.checkInCode ? ` (Check-in Code: ${res.checkInCode})` : ''));
-        loadDashboard();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function verifyCheckIn() {
-      try {
-        const res = await api('/api/check-in', 'POST', { code: document.getElementById('checkin-code').value });
-        alert(`✅ Checked in: ${res.member}`);
-        loadDashboard();
-      } catch (e) { alert(e.message); }
-    }
-
-    async function createSession() {
-      try {
-        const val = document.getElementById('new-slot').value;
-        await api('/api/sessions', 'POST', { start_time: new Date(val).toISOString() });
-        alert('Slot Created!');
-        loadDashboard();
-      } catch (e) { alert(e.message); }
-    }
-
-    function logout() { localStorage.clear(); location.reload(); }
-    if (token) loadDashboard();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
