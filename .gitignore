@@ -1,4 +1,15 @@
-node_modules
+# Node modules
+node_modules/
+
+# Environment variables
 .env
+
+# SQLite database and temporary files
 *.db
+*.sqlite
 *.db-journal
+*.db-wal
+
+# OS files
+.DS_Store
+Thumbs.db
